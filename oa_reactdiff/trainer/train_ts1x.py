@@ -6,6 +6,7 @@ import torch
 
 from pl_trainer import DDPMModule
 from pytorch_lightning import Trainer, seed_everything
+from pytorch_lightning.loggers import CSVLogger
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.callbacks import (
     EarlyStopping,
@@ -22,6 +23,7 @@ from oa_reactdiff.model import EGNN, LEFTNet
 model_type = "leftnet"
 version = "0"
 project = "OAReactDiff"
+use_wandb = False
 # ---EGNNDynamics---
 egnn_config = dict(
     in_node_nf=8,  # embedded dim before injecting to egnn
@@ -158,18 +160,22 @@ config.update(optimizer_config)
 config.update(training_config)
 trainer = None
 if trainer is None or (isinstance(trainer, Trainer) and trainer.is_global_zero):
-    wandb_logger = WandbLogger(
-        project=project,
-        log_model=False,
-        name=run_name,
-    )
+    if use_wandb:
+        logger = WandbLogger(
+            project=project,
+            log_model=False,
+            name=run_name,
+        )
+    else:
+        logger = CSVLogger("../../working/initial", name="initial_exp")
     try:  # Avoid errors for creating wandb instances multiple times
-        wandb_logger.experiment.config.update(config)
-        wandb_logger.watch(ddpm.ddpm.dynamics, log="all", log_freq=100, log_graph=False)
+        logger.experiment.config.update(config)
+        logger.watch(ddpm.ddpm.dynamics, log="all", log_freq=100, log_graph=False)
+        ckpt_path = f"checkpoint/{project}/{logger.experiment.name}"
     except:
+        ckpt_path = f"checkpoint/{project}/{logger.name}"
         pass
 
-ckpt_path = f"checkpoint/{project}/{wandb_logger.experiment.name}"
 earlystopping = EarlyStopping(
     monitor="val-totloss",
     patience=2000,
@@ -210,7 +216,7 @@ trainer = Trainer(
     log_every_n_steps=1,
     callbacks=callbacks,
     profiler=None,
-    logger=wandb_logger,
+    logger=logger,
     accumulate_grad_batches=1,
     gradient_clip_val=training_config["gradient_clip_val"],
     limit_train_batches=200,
@@ -219,4 +225,4 @@ trainer = Trainer(
 )
 
 trainer.fit(ddpm)
-trainer.save_checkpoint("pretrained-ts1x-diff.ckpt")
+trainer.save_checkpoint("working/initial/pretrained-ts1x-diff.ckpt")
