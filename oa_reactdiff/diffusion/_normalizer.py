@@ -3,14 +3,14 @@ from typing import Tuple, List, Dict
 import torch
 from torch import nn, Tensor
 
-FEATURE_MAPPING = ["pos", "one_hot", "charge"]
+FEATURE_MAPPING = ["pos", "one_hot", "charge", "time"]
 
 
 class Normalizer(nn.Module):
     def __init__(
         self,
-        norm_values: Tuple = (1.0, 1.0, 1.0),
-        norm_biases: Tuple = (0.0, 0.0, 0.0),
+        norm_values: Tuple = (1.0, 1.0, 1.0, 1.0),
+        norm_biases: Tuple = (0.0, 0.0, 0.0, 0.0),
         pos_dim: int = 3,
     ) -> None:
         super().__init__()

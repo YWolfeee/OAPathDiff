@@ -86,6 +86,7 @@ class ProcessedTS1x(BaseDataset):
         self.device = torch.device(device)
         n_samples = len(self.reactant["charges"])
         self.n_samples = len(self.reactant["charges"])
+        self.append_t = kwargs.get('append_t', False)
 
         self.data = {}
         repeat = 2 if swapping_react_prod else 1
@@ -103,11 +104,12 @@ class ProcessedTS1x(BaseDataset):
         if not only_ts:
             if not append_frag:
                 self.process_molecules(
-                    "reactant", n_samples, idx=0, position_key=position_key
+                    "reactant", n_samples, idx=0, position_key=position_key, time=0.0
                 )
-                self.process_molecules("transition_state", n_samples, idx=1)
+                self.process_molecules("transition_state", n_samples, idx=1, time=0.5)
                 self.process_molecules(
-                    "product", n_samples, idx=2, position_key=position_key
+                    "product", n_samples, idx=2, position_key=position_key,
+                    time=1.0
                 )
             else:
                 self.process_molecules(
@@ -116,9 +118,10 @@ class ProcessedTS1x(BaseDataset):
                     idx=0,
                     append_charge=0,
                     position_key=position_key,
+                    time=0.0,
                 )
                 self.process_molecules(
-                    "transition_state", n_samples, idx=1, append_charge=1
+                    "transition_state", n_samples, idx=1, append_charge=1, time=0.5,
                 )
                 self.process_molecules(
                     "product",
@@ -126,16 +129,17 @@ class ProcessedTS1x(BaseDataset):
                     idx=2,
                     append_charge=0,
                     position_key=position_key,
+                    time=1.0,
                 )
 
             for idx in range(pad_fragments):
                 self.patch_dummy_molecules(idx + 3)
         else:
             if not append_frag:
-                self.process_molecules("transition_state", n_samples, idx=0)
+                self.process_molecules("transition_state", n_samples, idx=0, time=0.5)
             else:
                 self.process_molecules(
-                    "transition_state", n_samples, idx=0, append_charge=1
+                    "transition_state", n_samples, idx=0, append_charge=1, time=0.5,
                 )
             # for idx in range(2):
             #     self.patch_dummy_molecules(idx + 1)

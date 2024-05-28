@@ -140,7 +140,7 @@ class BaseDataset(Dataset):
         ]
 
     def process_molecules(
-        self, dataset_name, n_samples, idx, append_charge=None, position_key="positions"
+        self, dataset_name, n_samples, idx, append_charge=None, position_key="positions", time=None,
     ):
         data = getattr(self, dataset_name)
         self.data[f"size_{idx}"] = torch.tensor(data["num_atoms"], device=self.device)
@@ -216,3 +216,8 @@ class BaseDataset(Dataset):
             self.data[f"pos_{idx}"] = [
                 pos - torch.mean(pos, dim=0) for pos in self.data[f"pos_{idx}"]
             ]
+
+        time = 0.0 if not self.append_t else time
+        assert type(time) == float, "time should be float"
+        self.data[f"time_{idx}"] = [
+            time * torch.ones_like(w) for w in self.data[f'charge_{idx}']]
