@@ -25,6 +25,7 @@ from oa_reactdiff.dataset import (
     ProcessedDoubleQM9,
     ProcessedTripleQM9,
     ProcessedTS1x,
+    ProcessedPath,
 )
 from oa_reactdiff.dynamics import EGNNDynamics, Confidence
 from oa_reactdiff.diffusion._schedule import DiffSchedule, PredefinedNoiseSchedule
@@ -39,12 +40,14 @@ PROCESS_FUNC = {
     "DoubleQM9": ProcessedDoubleQM9,
     "TripleQM9": ProcessedTripleQM9,
     "TS1x": ProcessedTS1x,
+    "Path": ProcessedPath,
 }
 FILE_TYPE = {
     "QM9": ".npz",
     "DoubleQM9": ".npz",
     "TripleQM9": ".npz",
     "TS1x": ".pkl",
+    "Path": ".npz",
 }
 LR_SCHEDULER = {
     "cos": CosineAnnealingWarmRestarts,
@@ -162,17 +165,14 @@ class DDPMModule(LightningModule):
         ft = FILE_TYPE[self.process_type]
         if stage == "fit":
             self.train_dataset = func(
-                Path(self.training_config["datadir"], f"train_addprop{ft}"),
                 **self.training_config,
             )
             self.training_config["reflection"] = False  # Turn off reflection in val.
             self.val_dataset = func(
-                Path(self.training_config["datadir"], f"valid_addprop{ft}"),
                 **self.training_config,
             )
         elif stage == "test":
             self.test_dataset = func(
-                Path(self.training_config["datadir"], f"test{ft}"),
                 **self.training_config,
             )
         else:
@@ -324,69 +324,70 @@ class DDPMModule(LightningModule):
         )
         return np.mean(rmsds), np.median(rmsds)
 
-    def training_step(self, batch, batch_idx):
-        nll, info = self.compute_loss(batch)
-        loss = nll.mean(0)
+    # def training_step(self, batch, batch_idx, **kwargs):
+    #     nll, info = self.compute_loss(batch)
+    #     loss = nll.mean(0)
+    #     info["totloss"] = loss.item()
 
-        self.log("train-totloss", loss, rank_zero_only=True)
-        for k, v in info.items():
-            self.log(f"train-{k}", v, rank_zero_only=True)
+    #     if (self.current_epoch + 1) % self.eval_epochs == 0:
+    #         # if self.trainer.is_global_zero:
+    #         #     print(
+    #         #         "evaluation on samping for training batch...",
+    #         #         batch[1].shape,
+    #         #         batch_idx,
+    #         #     )
+    #         rmsd_mean, rmsd_median = self.eval_inplaint_batch(batch)
+    #         info["rmsd"], info["rmsd-median"] = rmsd_mean, rmsd_median
+    #     else:
+    #         info["rmsd"], info["rmsd-median"] = np.nan, np.nan
+    #     # info["loss"] = loss
+    #     return info
+
+    def _shared_step(self, batch, batch_idx, **kwargs):
+        nll, info = self.compute_loss(batch)
+        info["loss"] = nll.mean(0)
+        info["totloss"] = info["loss"].item()
 
         if (self.current_epoch + 1) % self.eval_epochs == 0 and batch_idx == 0:
-            if self.trainer.is_global_zero:
-                print(
-                    "evaluation on samping for training batch...",
-                    batch[1].shape,
-                    batch_idx,
-                )
-            rmsd_mean, rmsd_median = self.eval_inplaint_batch(batch)
-            info["rmsd"], info["rmsd-median"] = rmsd_mean, rmsd_median
-        else:
-            info["rmsd"], info["rmsd-median"] = np.nan, np.nan
-        info["loss"] = loss
-        return info
-
-    def _shared_eval(self, batch, batch_idx, prefix, *args):
-        nll, info = self.compute_loss(batch)
-        loss = nll.mean(0)
-        info["totloss"] = loss.item()
-
-        if (self.current_epoch + 1) % self.eval_epochs == 0 and batch_idx == 0:
-            if self.trainer.is_global_zero:
-                print(
-                    "evaluation on samping for validation batch...",
-                    batch[1].shape,
-                    batch_idx,
-                )
+            # if self.trainer.is_global_zero:
+            #     print(
+            #         "evaluation on samping for validation batch...",
+            #         batch[1].shape,
+            #         batch_idx,
+            #     )
             info["rmsd"], info["rmsd-median"] = self.eval_inplaint_batch(batch)
         else:
             info["rmsd"], info["rmsd-median"] = np.nan, np.nan
 
-        info_prefix = {}
-        for k, v in info.items():
-            info_prefix[f"{prefix}-{k}"] = v
-        return info_prefix
+        return info
+        # info_prefix = {}
+        # for k, v in info.items():
+        #     info_prefix[f"{prefix}-{k}"] = v
+        # return info_prefix
 
-    def validation_step(self, batch, batch_idx, *args):
-        return self._shared_eval(batch, batch_idx, "val", *args)
+    def training_step(self, batch, batch_idx, **kwargs):
+        return self._shared_step(batch, batch_idx, **kwargs)
 
-    def test_step(self, batch, batch_idx, *args):
-        return self._shared_eval(batch, batch_idx, "test", *args)
+    def validation_step(self, batch, batch_idx, **kwargs):
+        return self._shared_step(batch, batch_idx, **kwargs)
+
+    def test_step(self, batch, batch_idx, **kwargs):
+        return self._shared_step(batch, batch_idx, **kwargs)
 
     def validation_epoch_end(self, val_step_outputs):
-        val_epoch_metrics = average_over_batch_metrics(val_step_outputs)
+        epoch_metrics = average_over_batch_metrics(val_step_outputs, exclude=['loss'])
         if self.trainer.is_global_zero:
-            pretty_print(self.current_epoch, val_epoch_metrics, prefix="val")
-        val_epoch_metrics.update({"epoch": self.current_epoch})
-        for k, v in val_epoch_metrics.items():
-            self.log(k, v, sync_dist=True)
+            pretty_print(self.current_epoch, epoch_metrics, prefix="val")
+        # epoch_metrics.update({"epoch": self.current_epoch})
+        for k, v in epoch_metrics.items():
+            self.log(f"val-{k}", v, sync_dist=True)
 
     def training_epoch_end(self, outputs) -> None:
-        epoch_metrics = average_over_batch_metrics(
-            outputs, allowed=["rmsd", "rmsd-median"]
-        )
-        self.log("train-rmsd", epoch_metrics["rmsd"], sync_dist=True)
-        self.log("train-rmsd-median", epoch_metrics["rmsd-median"], sync_dist=True)
+        epoch_metrics = average_over_batch_metrics(outputs, exclude=['loss'])
+        if self.trainer.is_global_zero:
+            pretty_print(self.current_epoch, epoch_metrics, prefix="train")
+        for k, v in epoch_metrics.items():
+            self.log(f"train-{k}", v, sync_dist=True)
 
     def configure_gradient_clipping(
         self, optimizer, optimizer_idx, gradient_clip_val, gradient_clip_algorithm
@@ -632,7 +633,7 @@ class ConfModule(LightningModule):
         return self._shared_eval(batch, batch_idx, "test", *args)
 
     def validation_epoch_end(self, val_step_outputs):
-        val_epoch_metrics = average_over_batch_metrics(val_step_outputs)
+        val_epoch_metrics = average_over_batch_metrics(val_step_outputs, exclude=['loss'])
         if self.trainer.is_global_zero:
             pretty_print(self.current_epoch, val_epoch_metrics, prefix="val")
         val_epoch_metrics.update({"epoch": self.current_epoch})

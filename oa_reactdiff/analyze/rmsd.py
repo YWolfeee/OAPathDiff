@@ -15,7 +15,7 @@ from torch import Tensor
 
 def xh2pmg(xh):
     mol = Molecule(
-        species=xh[:, -1].long().cpu().numpy(),
+        species=xh[:, -2].long().cpu().numpy(),  # last dim is time
         coords=xh[:, :3].cpu().numpy(),
     )
     return mol

@@ -28,8 +28,11 @@ class BaseDataset(Dataset):
         super().__init__()
 
         if ".npz" in str(npz_path):
-            with np.load(npz_path, allow_pickle=True) as f:
+            f = np.load(npz_path, allow_pickle=True)
+            try:
                 data = {key: val for key, val in f.items()}
+            except AttributeError:
+                data = f.item()
         elif ".pkl" in str(npz_path):
             data = pickle.load(open(npz_path, "rb"))
         else:
@@ -217,7 +220,14 @@ class BaseDataset(Dataset):
                 pos - torch.mean(pos, dim=0) for pos in self.data[f"pos_{idx}"]
             ]
 
-        time = 0.0 if not self.append_t else time
-        assert type(time) == float, "time should be float"
-        self.data[f"time_{idx}"] = [
-            time * torch.ones_like(w) for w in self.data[f'charge_{idx}']]
+        if not self.append_t:
+            self.data[f"time_{idx}"] = [
+                torch.zeros_like(w) for w in self.data[f'charge_{idx}']]
+        else:
+            if time is None:
+                self.data[f"time_{idx}"] = [w * torch.ones_like(u) for w, u in zip(data['time'], self.data[f'charge_{idx}'])]
+            else:
+                self.data[f"time_{idx}"] = [
+                time * torch.ones_like(w) for w in self.data[f'charge_{idx}']]
+        
+    

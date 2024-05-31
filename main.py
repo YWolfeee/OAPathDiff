@@ -34,10 +34,11 @@ def get_config():
     parser.add_argument("--version", type=str, default="0", help="Model version")
     parser.add_argument("--project", type=str, default="OAReactDiff", help="Project name")
     parser.add_argument("--use_wandb", type=bool, default=False, help="Use wandb for logging")
-    parser.add_argument("--datadir", type=str, default="oa_reactdiff/data/transition1x/", help="Data directory")
+    parser.add_argument("--datadir", type=str, help="Data directory")
     parser.add_argument("--save_path", type=str, default="working/debug", help="Save path")
     parser.add_argument("--run_name", type=str, default="initial_exp", help="Run name")
     parser.add_argument("--save_top_k", type=int, default=5, help="Save every n epochs")
+    parser.add_argument("--suffix", type=str, default="", help="Suffix")
 
     # -- training config --
     parser.add_argument("--node_nfs", type=int, default=10, help="Node feature dimensions")
@@ -131,7 +132,7 @@ def get_diffusion(args: argparse.Namespace,
         datadir=args.datadir,
         remove_h=False,
         bz=args.batch_size,
-        num_workers=0,
+        num_workers=8,
         clip_grad=args.clip_grad,
         gradient_clip_val=args.gradient_clip_val,
         ema=False,
@@ -159,13 +160,14 @@ def get_diffusion(args: argparse.Namespace,
 
 
     earlystopping = EarlyStopping(
-        monitor="val-totloss",
+        monitor="val-loss",
         patience=2000,
         verbose=True,
         log_rank_zero_only=True,
     )
     lr_monitor = LearningRateMonitor(logging_interval="step")
-    callbacks = [earlystopping, TQDMProgressBar(), lr_monitor]
+    # callbacks = [earlystopping, TQDMProgressBar(), lr_monitor]
+    callbacks = [earlystopping]
     if training_config["ema"]:
         callbacks.append(EMACallback(decay=training_config["ema_decay"]))
 
@@ -218,7 +220,9 @@ if __name__ == "__main__":
 
 
     # run_name = f"{args.model_type}-{args.version}-" + str(uuid4()).split("-")[-1]
-    run_name = args.run_name + f"+max_epochs={args.max_epochs}+append_t={args.append_t}"
+    run_name = args.run_name + f"process_type={args.process_type}+max_epochs={args.max_epochs}+append_t={args.append_t}"
+    if args.suffix:
+        run_name += "+" + args.suffix
     if args.use_wandb:
         logger = WandbLogger(
             project=args.project,
@@ -226,7 +230,7 @@ if __name__ == "__main__":
             name=run_name,
         )
     else:
-        logger = CSVLogger(args.save_path, name=run_name)
+        logger = CSVLogger(args.save_path, name=run_name, version="")
     try:  # Avoid errors for creating wandb instances multiple times
         logger.experiment.config.update(config)
         logger.watch(ddpm.ddpm.dynamics, log="all", log_freq=100, log_graph=False)
@@ -267,6 +271,7 @@ if __name__ == "__main__":
         gradient_clip_val=training_config["gradient_clip_val"],
         limit_train_batches=200,
         limit_val_batches=20,
+        enable_progress_bar=False,
         # max_time="00:10:00:00",
     )
 

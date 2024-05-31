@@ -21,7 +21,7 @@ def reflect_z(x):
 class ProcessedTS1x(BaseDataset):
     def __init__(
         self,
-        npz_path,
+        datadir,
         center=True,
         pad_fragments=0,
         device="cpu",
@@ -39,7 +39,7 @@ class ProcessedTS1x(BaseDataset):
         **kwargs,
     ):
         super().__init__(
-            npz_path=npz_path,
+            npz_path=datadir,
             center=center,
             device=device,
             zero_charge=zero_charge,

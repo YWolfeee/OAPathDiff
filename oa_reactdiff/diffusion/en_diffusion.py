@@ -276,6 +276,11 @@ class EnVariationalDiffusion(nn.Module):
             for ii in range(len(masks))
         ]
 
+        if self.pos_only:
+            z_t = [torch.concat(
+                [u[:, :self.pos_dim], v[:, self.pos_dim:]],dim=1) 
+            for u, v in zip(z_t, xh)]
+ 
         return z_t, eps_xh
 
     def sample_combined_position_feature_noise(
