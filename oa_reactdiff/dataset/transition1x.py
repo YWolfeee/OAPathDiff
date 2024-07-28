@@ -152,3 +152,5 @@ class ProcessedTS1x(BaseDataset):
             )
             for _ in range(self.n_samples)
         ]
+
+        self.data = np.asarray(self.data)

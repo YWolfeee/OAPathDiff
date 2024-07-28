@@ -692,11 +692,15 @@ class EnVariationalDiffusion(nn.Module):
             for ii in range(len(masks))
         ]
         cat_0 = [
-            self.normalizer.unnormalize(x0_xh[ii][:, self.pos_dim : -1], ii)
+            self.normalizer.unnormalize(x0_xh[ii][:, self.pos_dim : -2], ii)
             for ii in range(len(masks))
         ]
         charge_0 = [
-            torch.round(self.normalizer.unnormalize(x0_xh[ii][:, -1:], ii)).long()
+            torch.round(self.normalizer.unnormalize(x0_xh[ii][:, -2: -1], ii)).long()
+            for ii in range(len(masks))
+        ]
+        time_0 = [
+            torch.zeros_like(charge_0[ii], device=charge_0[ii].device)
             for ii in range(len(masks))
         ]
 
@@ -752,7 +756,8 @@ class EnVariationalDiffusion(nn.Module):
         edge_index = get_edges_index(combined_mask, remove_self_edge=True)
         n_frag_switch = get_n_frag_switch(fragments_nodes)
 
-        h0 = [_xh_fixed[:, self.pos_dim :].long() for _xh_fixed in xh_fixed]
+        # remove `.long()` since right now the last index could be float
+        h0 = [_xh_fixed[:, self.pos_dim :] for _xh_fixed in xh_fixed]
 
         for ii, _ in enumerate(xh_fixed):
             xh_fixed[ii][:, : self.pos_dim] = utils.remove_mean_batch(
@@ -870,6 +875,7 @@ class EnVariationalDiffusion(nn.Module):
             batch_size=n_samples,
             conditions=conditions,
         )
+        assert self.pos_only, "After allowing time to be added to the array, only pos_only mode is supported."
         if self.pos_only:
             cat = [_h0[:, :-1] for _h0 in h0]
             charge = [_h0[:, -1:] for _h0 in h0]

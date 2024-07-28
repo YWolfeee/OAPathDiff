@@ -532,6 +532,8 @@ class ConfModule(LightningModule):
             shuffle=True,
             num_workers=self.training_config["num_workers"],
             collate_fn=self.train_dataset.collate_fn,
+            pin_memory=True,
+            prefetch_factor=2,
         )
 
     def val_dataloader(self) -> DataLoader:
@@ -541,6 +543,8 @@ class ConfModule(LightningModule):
             shuffle=False,
             num_workers=self.training_config["num_workers"],
             collate_fn=self.val_dataset.collate_fn,
+            pin_memory=True,
+            prefetch_factor=2,
         )
 
     def test_dataloader(self) -> DataLoader:
@@ -550,6 +554,8 @@ class ConfModule(LightningModule):
             shuffle=False,
             num_workers=self.training_config["num_workers"],
             collate_fn=self.test_dataset.collate_fn,
+            pin_memory=True,
+            prefetch_factor=2,
         )
 
     def compute_loss(self, batch):

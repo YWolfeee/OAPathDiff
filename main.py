@@ -160,7 +160,7 @@ def get_diffusion(args: argparse.Namespace,
 
 
     earlystopping = EarlyStopping(
-        monitor="val-loss",
+        monitor="val-totloss",
         patience=2000,
         verbose=True,
         log_rank_zero_only=True,
@@ -220,7 +220,7 @@ if __name__ == "__main__":
 
 
     # run_name = f"{args.model_type}-{args.version}-" + str(uuid4()).split("-")[-1]
-    run_name = args.run_name + f"process_type={args.process_type}+max_epochs={args.max_epochs}+append_t={args.append_t}"
+    run_name = args.run_name + f"+process_type={args.process_type}+max_epochs={args.max_epochs}+append_t={args.append_t}"
     if args.suffix:
         run_name += "+" + args.suffix
     if args.use_wandb:

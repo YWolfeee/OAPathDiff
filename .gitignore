@@ -110,3 +110,9 @@ ENV/
 
 *.ckpt
 oa_reactdiff/trainer/wandb
+
+
+# developing files
+working/
+temp*
+.vscode

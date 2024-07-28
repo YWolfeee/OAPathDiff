@@ -49,10 +49,10 @@ class BaseDataset(Dataset):
         self.device = device
 
     def __len__(self):
-        return len(self.data["size_0"])
+        return self.n_samples
 
     def __getitem__(self, idx):
-        return {key: val[idx] for key, val in self.data.items()}
+        return {key: val[idx] for key, val in self.data.item().items()}
 
     @staticmethod
     def collate_fn(batch):
